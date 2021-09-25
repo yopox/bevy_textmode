@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use std::ops::Deref;
+use rand::prelude::*;
 
 const WIDTH: u16 = 10;
 const HEIGHT: u16 = 6;
@@ -11,6 +12,7 @@ const SCREENH: f32 = 720.;
 struct Materials {
     tileset: Handle<TextureAtlas>,
 }
+struct Tile;
 
 fn main() {
     App::build()
@@ -23,6 +25,7 @@ fn main() {
             ..Default::default()
         })
         .add_startup_system(setup.system())
+        .add_system(shuffle.system())
         .run();
 }
 
@@ -50,17 +53,26 @@ fn setup(
             commands
                 .spawn_bundle(SpriteSheetBundle {
                     texture_atlas: texture_handle.clone(),
-                    sprite: TextureAtlasSprite {
-                        index: 1,
-                        ..Default::default()
-                    },
                     transform: Transform {
                         translation: Vec3::new(&left + x as f32 * SCALE * SIZE, &bottom + y as f32 * SCALE * SIZE, 0.),
                         scale: Vec3::new(SCALE, SCALE, 1.),
                         ..Default::default()
                     },
                     ..Default::default()
-                });
+                })
+                .insert(Tile);
+        }
+    }
+}
+
+fn shuffle(
+    keys: Res<Input<KeyCode>>,
+    mut tiles: Query<(&Tile, &mut TextureAtlasSprite)>,
+) {
+    let mut rng = rand::thread_rng();
+    if keys.pressed(KeyCode::R) {
+        for (_, mut sprite) in tiles.iter_mut() {
+            sprite.index = (rng.gen::<f64>() * 512.0) as u32
         }
     }
 }
