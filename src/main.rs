@@ -70,9 +70,10 @@ fn shuffle(
     mut tiles: Query<(&Tile, &mut TextureAtlasSprite)>,
 ) {
     let mut rng = rand::thread_rng();
-    if keys.pressed(KeyCode::R) {
+    if keys.just_pressed(KeyCode::R) {
         for (_, mut sprite) in tiles.iter_mut() {
-            sprite.index = (rng.gen::<f64>() * 512.0) as u32
+            sprite.index = (rng.gen::<f64>() * 512.0) as u32;
+            if rng.gen::<f64>() < 0.3 { sprite.index = 0 }
         }
     }
 }
