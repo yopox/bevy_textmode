@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use std::ops::Deref;
 use rand::prelude::*;
 
 const WIDTH: u16 = 10;
@@ -12,21 +11,29 @@ const SCREENH: f32 = 720.;
 
 pub struct Materials {
     tileset: Handle<TextureAtlas>,
-    cursor: Handle<ColorMaterial>,
+    cursor: Handle<Image>,
 }
+
+#[derive(Component)]
 struct MainCamera;
+
+#[derive(Component)]
 struct Tile {
     x: u16,
     y: u16,
 }
+
+#[derive(Component)]
 struct Cursor {
     x: u16,
     y: u16,
 }
+
+#[derive(Component)]
 struct Selected;
 
 fn main() {
-    App::build()
+    App::new()
         .add_plugins(DefaultPlugins)
         .insert_resource(WindowDescriptor {
             title: "rtemo".to_string(),
@@ -35,14 +42,14 @@ fn main() {
             vsync: true,
             ..Default::default()
         })
-        .add_startup_system(setup.system())
+        .add_startup_system(setup)
         .add_startup_stage(
             "game_setup_actors",
-            SystemStage::single(spawn_grid.system()),
+            SystemStage::single(spawn_grid),
         )
-        .add_system(shuffle.system())
-        .add_system(update_cursor.system().label("cursor"))
-        .add_system(flip.system().after("cursor"))
+        .add_system(shuffle)
+        .add_system(update_cursor.label("cursor"))
+        .add_system(flip.after("cursor"))
         .run();
 }
 
@@ -50,13 +57,12 @@ fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     // Ressources
     let texture_atlas = TextureAtlas::from_grid(asset_server.load("MRMOTEXT.png"), Vec2::new(8.0, 8.0), 32, 32);
     commands.insert_resource(Materials {
         tileset: texture_atlases.add(texture_atlas),
-        cursor: materials.add(asset_server.load("cursor.png").into()),
+        cursor: asset_server.load("cursor.png"),
     });
 
     // Camera
@@ -94,10 +100,9 @@ fn spawn_grid(
 
     // Cursor
     commands.spawn_bundle(SpriteBundle {
-        material: materials.cursor.clone(),
-        visible: Visible {
+        texture: materials.cursor.clone(),
+        visibility: Visibility {
             is_visible: false,
-            is_transparent: true,
         },
         transform: Transform {
             translation: Vec3::new(0., 0., 1.),
@@ -113,8 +118,8 @@ fn shuffle(
 ) {
     let mut rng = rand::thread_rng();
     if keys.just_pressed(KeyCode::R) {
-        for (mut sprite) in tiles.iter_mut() {
-            sprite.index = (rng.gen::<f64>() * 512.0) as u32;
+        for mut sprite in tiles.iter_mut() {
+            sprite.index = (rng.gen::<f64>() * 512.0) as usize;
             if rng.gen::<f64>() < 0.3 { sprite.index = 0 }
         }
     }
@@ -123,25 +128,26 @@ fn shuffle(
 fn update_cursor(
     windows: Res<Windows>,
     mut q: QuerySet<(
-        Query<&Transform, With<MainCamera>>,
-        Query<(&mut Transform, &mut Visible, &mut Cursor)>,
+        QueryState<&Transform, With<MainCamera>>,
+        QueryState<(&mut Transform, &mut Visibility, &mut Cursor)>,
     )>,
 ) {
     let wnd = windows.get_primary().unwrap();
     if let Some(pos) = wnd.cursor_position() {
         let size = Vec2::new(wnd.width() as f32, wnd.height() as f32);
         let p = pos - size / 2.0;
-        let camera_transform = q.q0_mut().single().unwrap();
-        let pos_wld = camera_transform.compute_matrix() * p.extend(0.0).extend(1.0);
-        let (mut cursor_transform, mut visible, mut cursor) = q.q1_mut().single_mut().expect("Cursor not found");
-        if pos_wld.x < 0. || pos_wld.x > WIDTH as f32 * TILE_SIZE || pos_wld.y < 0. || pos_wld.y > HEIGHT as f32 * TILE_SIZE  {
-            visible.is_visible = false;
-        } else {
-            visible.is_visible = true;
+        let pos_wld = q.q0().single().compute_matrix() * p.extend(0.0).extend(1.0);
+        let mut query = q.q1();
+        let (mut cursor_pos, mut visible, mut cursor) = query.single_mut();
+        visible.is_visible = !(pos_wld.x < 0.
+            || pos_wld.x > WIDTH as f32 * TILE_SIZE
+            || pos_wld.y < 0.
+            || pos_wld.y > HEIGHT as f32 * TILE_SIZE);
+        if visible.is_visible {
             let x = pos_wld.x as u16 / TILE_SIZE as u16;
             let y = pos_wld.y as u16 / TILE_SIZE as u16;
-            cursor_transform.translation.x = TILE_SIZE * (0.5 + x as f32);
-            cursor_transform.translation.y = TILE_SIZE * (0.5 + y as f32);
+            cursor_pos.translation.x = TILE_SIZE * (0.5 + x as f32);
+            cursor_pos.translation.y = TILE_SIZE * (0.5 + y as f32);
             cursor.x = x;
             cursor.y = y;
         }
@@ -151,17 +157,17 @@ fn update_cursor(
 fn flip(
     keys: Res<Input<KeyCode>>,
     mut q: QuerySet<(
-        Query<(&Cursor, &Visible)>,
-        Query<(&mut TextureAtlasSprite, &Tile)>,
+        QueryState<(&Cursor, &Visibility)>,
+        QueryState<(&mut TextureAtlasSprite, &Tile)>,
     )>,
 ) {
     if keys.just_pressed(KeyCode::LAlt) || keys.just_pressed(KeyCode::LControl) {
         let (x, y) = {
-            let (cursor, visible) = q.q0().single().expect("Couldn't find cursor");
+            let (cursor, visible) = q.q0().single();
             if !visible.is_visible { return; }
             (cursor.x, cursor.y)
         };
-        for (mut sprite, tile) in q.q1_mut().iter_mut() {
+        for (mut sprite, tile) in q.q1().iter_mut() {
             if tile.x == x && tile.y == y {
                 if keys.just_pressed(KeyCode::LAlt) { sprite.flip_x = !sprite.flip_x; }
                 if keys.just_pressed(KeyCode::LControl) { sprite.flip_y = !sprite.flip_y; }
