@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::window::PresentMode;
 use rand::prelude::*;
 
 const WIDTH: u16 = 10;
@@ -21,7 +22,23 @@ struct MainCamera;
 struct Tile {
     x: u16,
     y: u16,
+    bg: Color,
+    fg: Color,
 }
+
+impl Tile {
+    fn new(x: u16, y: u16) -> Self {
+        Tile {
+            x,
+            y,
+            bg: Color::WHITE,
+            fg: Color::BLACK,
+        }
+    }
+}
+
+#[derive(Component)]
+struct RecomputeTexture;
 
 #[derive(Component)]
 struct Cursor {
@@ -39,7 +56,7 @@ fn main() {
             title: "rtemo".to_string(),
             width: SCREENW,
             height: SCREENH,
-            vsync: true,
+            present_mode: PresentMode::Immediate,
             ..Default::default()
         })
         .add_startup_system(setup)
@@ -94,7 +111,7 @@ fn spawn_grid(
                     },
                     ..Default::default()
                 })
-                .insert(Tile { x, y });
+                .insert(Tile::new(x, y));
         }
     }
 
@@ -127,17 +144,17 @@ fn shuffle(
 
 fn update_cursor(
     windows: Res<Windows>,
-    mut q: QuerySet<(
-        QueryState<&Transform, With<MainCamera>>,
-        QueryState<(&mut Transform, &mut Visibility, &mut Cursor)>,
+    mut q: ParamSet<(
+        Query<&Transform, With<MainCamera>>,
+        Query<(&mut Transform, &mut Visibility, &mut Cursor)>,
     )>,
 ) {
     let wnd = windows.get_primary().unwrap();
     if let Some(pos) = wnd.cursor_position() {
         let size = Vec2::new(wnd.width() as f32, wnd.height() as f32);
         let p = pos - size / 2.0;
-        let pos_wld = q.q0().single().compute_matrix() * p.extend(0.0).extend(1.0);
-        let mut query = q.q1();
+        let pos_wld = q.p0().single().compute_matrix() * p.extend(0.0).extend(1.0);
+        let mut query = q.p1();
         let (mut cursor_pos, mut visible, mut cursor) = query.single_mut();
         visible.is_visible = !(pos_wld.x < 0.
             || pos_wld.x > WIDTH as f32 * TILE_SIZE
@@ -156,18 +173,20 @@ fn update_cursor(
 
 fn flip(
     keys: Res<Input<KeyCode>>,
-    mut q: QuerySet<(
-        QueryState<(&Cursor, &Visibility)>,
-        QueryState<(&mut TextureAtlasSprite, &Tile)>,
+    mut q: ParamSet<(
+        Query<(&Cursor, &Visibility)>,
+        Query<(&mut TextureAtlasSprite, &Tile)>,
     )>,
 ) {
     if keys.just_pressed(KeyCode::LAlt) || keys.just_pressed(KeyCode::LControl) {
         let (x, y) = {
-            let (cursor, visible) = q.q0().single();
+            let p = q.p0();
+            let (cursor, visible) = p.single();
             if !visible.is_visible { return; }
             (cursor.x, cursor.y)
         };
-        for (mut sprite, tile) in q.q1().iter_mut() {
+        let mut p =  q.p1();
+        for (mut sprite, tile) in p.iter_mut() {
             if tile.x == x && tile.y == y {
                 if keys.just_pressed(KeyCode::LAlt) { sprite.flip_x = !sprite.flip_x; }
                 if keys.just_pressed(KeyCode::LControl) { sprite.flip_y = !sprite.flip_y; }

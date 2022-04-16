@@ -5,5 +5,5 @@ edition = "2021"
 authors = ["yopox yopoxdev@gmail.com"]
 
 [dependencies]
-bevy = "0.6.1"
+bevy = "0.7"
 rand = "0.8.4"
