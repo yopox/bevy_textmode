@@ -1,5 +1,5 @@
 [package]
-name = "rtemo"
+name = "bevy_textmode"
 version = "0.1.0"
 edition = "2021"
 authors = ["yopox yopoxdev@gmail.com"]
