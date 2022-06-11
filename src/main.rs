@@ -1,14 +1,20 @@
 use bevy::ecs::system::lifetimeless::SRes;
-use bevy::ecs::system::SystemParamItem;
+use bevy::ecs::system::{Resource, SystemParamItem};
 use bevy::prelude::*;
 use bevy::reflect::TypeUuid;
 use bevy::render::render_asset::{PrepareAssetError, RenderAsset, RenderAssets};
-use bevy::render::render_resource::{BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, BufferBindingType, BufferInitDescriptor, BufferSize, BufferUsages, SamplerBindingType, ShaderStages, TextureSampleType, TextureViewDimension};
+use bevy::render::render_resource::{BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, BufferBindingType, BufferInitDescriptor, BufferSize, BufferUsages, Extent3d, SamplerBindingType, ShaderStages, TextureDimension, TextureFormat, TextureSampleType, TextureViewDimension};
 use bevy::render::renderer::RenderDevice;
-use bevy::sprite::{Material2d, Material2dPipeline, Material2dPlugin, MaterialMesh2dBundle};
+use bevy::sprite::{Material2d, Material2dPipeline, Material2dPlugin, MaterialMesh2dBundle, Mesh2dHandle};
 use bevy::window::PresentMode;
 use core::default::Default;
+use std::borrow::BorrowMut;
+use std::collections::HashMap;
+use bevy::ecs::query::WorldQuery;
 use bevy::render::render_resource::std140::{AsStd140, Std140};
+use rand::random;
+use image;
+use image::{GenericImageView, Rgba};
 
 fn main() {
     App::new()
@@ -22,39 +28,164 @@ fn main() {
             ..Default::default()
         })
         .add_startup_system(setup)
+        .add_startup_stage(
+            "game_setup_grid",
+            SystemStage::single(spawn_grid),
+        )
+        .add_system(update_color)
         .run();
+}
+
+#[derive(Component)]
+pub struct Tiles {
+    tiles: HashMap<usize, Handle<Image>>
+}
+
+#[derive(Component)]
+pub struct BasicMesh {
+    tile: Handle<Mesh>
+}
+
+#[derive(Component, Copy, Clone, Eq, PartialEq)]
+pub struct TilePos {
+    pub x: i32,
+    pub y: i32,
+}
+
+#[derive(Bundle, Clone)]
+pub struct TextModeBundle {
+    pub pos: TilePos,
+    pub mesh: Mesh2dHandle,
+    pub material: Handle<TileMaterial>,
+    pub transform: Transform,
+    pub global_transform: GlobalTransform,
+    pub visibility: Visibility,
+    pub computed_visibility: ComputedVisibility,
+}
+
+impl TextModeBundle {
+    fn new(tiles: &Res<Tiles>, mut materials: &mut ResMut<Assets<TileMaterial>>, index: usize, x: i32, y: i32, bg: Color, fg: Color, mesh: Handle<Mesh>) -> Self {
+        let texture = tiles.tiles.get(&index).expect("Couldn't find tile.");
+        TextModeBundle {
+            pos: TilePos { x, y },
+            mesh: mesh.into(),
+            material: materials.add(TileMaterial { texture: texture.clone(), bg, fg }),
+            transform: Transform {
+                translation: Vec3::new(x as f32 * 8.0, y as f32 * 8.0, 0.0),
+                ..Default::default()
+            },
+            global_transform: Default::default(),
+            visibility: Default::default(),
+            computed_visibility: Default::default()
+        }
+    }
 }
 
 fn setup(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
+    mut images: ResMut<Assets<Image>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut tile_material: ResMut<Assets<TileMaterial>>,
 ) {
-    commands.spawn_bundle(MaterialMesh2dBundle {
-        mesh: meshes.add(Mesh::from(shape::Quad::new(Vec2::new(16.0, 16.0)))).into(),
-        material: tile_material.add(TileMaterial {
-            texture: asset_server.load("tileset.png"),
-            bg: Color::BEIGE,
-            fg: Color::PINK
-        }),
-        transform: Transform {
-            scale: Vec3::new(16.0, 16.0, 1.0),
-            ..Default::default()
-        },
-        ..Default::default()
+    init_spritesheet("assets/MRMOTEXT.png", 8, images, &mut commands);
+
+    commands.insert_resource(BasicMesh {
+        tile: meshes.add(Mesh::from(shape::Quad::new(Vec2::new(8.0, 8.0))))
     });
 
     let mut camera = OrthographicCameraBundle::new_2d();
     camera.transform = Transform {
+        scale: Vec3::new(0.25, 0.25, 1.0),
         ..Default::default()
     };
     commands.spawn_bundle(camera);
 }
 
-#[derive(Debug, Clone, TypeUuid)]
+fn init_spritesheet(
+    path: &str,
+    size: u32,
+    mut images: ResMut<Assets<Image>>,
+    mut commands: &mut Commands,
+) {
+    let img = image::open(path).expect("File not found");
+    let tileWidth = img.width() / size;
+    let tileHeight = img.height() / size;
+    let mut tilesVec = vec![];
+    for i in 0..(tileWidth * tileHeight) {
+        tilesVec.push(vec![]);
+    }
+    for pixel in img.pixels() {
+        let x = pixel.0;
+        let y = pixel.1;
+        let n = x / size + y / size * tileWidth;
+        if let Some(tile) = tilesVec.get_mut(n as usize) {
+            match pixel.2.0 {
+                [0, 0, 0, _] => {
+                    tile.push(0);
+                    tile.push(0);
+                    tile.push(0);
+                    tile.push(255);
+                }
+                _ => {
+                    tile.push(255);
+                    tile.push(255);
+                    tile.push(255);
+                    tile.push(255);
+                }
+            }
+        }
+    }
+
+    let mut tiles_hm = HashMap::new();
+
+    for i in 0..tilesVec.len() {
+        let handle = images.add(Image::new(
+            Extent3d {
+                width: size,
+                height: size,
+                depth_or_array_layers: 1
+            },
+            TextureDimension::D2,
+            tilesVec.get(i).unwrap().clone(),
+            TextureFormat::Rgba8UnormSrgb
+        ));
+        tiles_hm.insert(i, handle);
+    }
+
+    commands.insert_resource(Tiles { tiles: tiles_hm });
+}
+
+fn spawn_grid(
+    mut commands: Commands,
+    mut materials: ResMut<Assets<TileMaterial>>,
+    tiles: Res<Tiles>,
+    meshes: Res<BasicMesh>,
+) {
+    for x in 0..8 {
+        for y in 0..8 {
+            commands.spawn_bundle(TextModeBundle::new(&tiles, &mut materials, 1, x, y, Color::BEIGE, Color::TOMATO, meshes.tile.clone()));
+        }
+    }
+}
+
+fn update_color(
+    mut materials: ResMut<Assets<TileMaterial>>,
+    all_tiles: Res<Tiles>,
+    tiles: Query<(&TilePos, &Handle<TileMaterial>)>,
+) {
+    // let x: u8 = random::<u8>() % 8;
+    // let y: u8 = random::<u8>() % 8;
+    // for (pos, handle) in tiles.iter() {
+    //     if pos.x == x as i32 && pos.y == y as i32 {
+    //         let mut tileMaterial = materials.get_mut(handle).unwrap();
+    //         tileMaterial.fg = Color::MIDNIGHT_BLUE;
+    //         tileMaterial.texture = all_tiles.tiles.get(&2).unwrap().clone();
+    //     }
+    // }
+}
+
+#[derive(Debug, Clone, Component, TypeUuid)]
 #[uuid = "eb3bfce5-5e0d-4a0e-bf7c-dec3e8a6d330"]
-struct TileMaterial {
+pub struct TileMaterial {
     texture: Handle<Image>,
     bg: Color,
     fg: Color,
