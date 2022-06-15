@@ -4,7 +4,7 @@ use bevy::window::PresentMode;
 use rand::random;
 use crate::colors::{ColorPlugin, Colors};
 use crate::tile_material::TileMaterial;
-use crate::tiles::{BasicMesh, TextModeBundle, TextModePlugin, TilePos, Tiles};
+use crate::tiles::{BasicMesh, TextModeBundle, TextModePlugin, TileId, TilePos, Tiles};
 
 mod tiles;
 mod tile_material;
@@ -51,10 +51,12 @@ fn spawn_grid(
 ) {
     for x in 0..32 {
         for y in 0..18 {
-            let i: usize = random::<usize>() % 1024;
-            let bg: usize = random::<usize>() % 16;
+            let i: usize = 1;
+            let flip = random::<bool>();
+            let rotation = random::<u8>() % 4;
+            let bg: usize = 0;
             let fg: usize = random::<usize>() % 16;
-            commands.spawn_bundle(TextModeBundle::new(&tiles, &mut materials, i, x, y, colors.get(bg), colors.get(fg), meshes.tile.clone()));
+            commands.spawn_bundle(TextModeBundle::new(&tiles, &mut materials, &TileId { index: i, flip, rotation}, x, y, colors.get(bg), colors.get(fg), meshes.tile.clone()));
         }
     }
 }
