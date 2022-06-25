@@ -27,6 +27,24 @@ pub struct TileId {
     pub(crate) rotation: u8,
 }
 
+impl TileId {
+    pub fn new() -> Self {
+        TileId {
+            index: 0,
+            flip: false,
+            rotation: 0
+        }
+    }
+
+    pub fn rotate(&mut self) {
+        self.rotation = (self.rotation + 1) % 4;
+    }
+
+    pub fn flip(&mut self) {
+        self.flip = !self.flip;
+    }
+}
+
 #[derive(Component)]
 pub struct Tiles {
     tiles: HashMap<TileId, Handle<Image>>
@@ -59,7 +77,7 @@ impl TextModeBundle {
             mesh: mesh.into(),
             material: materials.add(TileMaterial { texture: texture.clone(), bg, fg }),
             transform: Transform {
-                translation: Vec3::new(x as f32 * 8.0, y as f32 * 8.0, 0.0),
+                translation: Vec3::new(x as f32 * 8.0 + 26.0, y as f32 * 8.0, 0.0),
                 ..Default::default()
             },
             global_transform: Default::default(),

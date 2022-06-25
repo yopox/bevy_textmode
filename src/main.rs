@@ -5,10 +5,12 @@ use rand::random;
 use crate::colors::{ColorPlugin, Colors};
 use crate::tile_material::TileMaterial;
 use crate::tiles::{BasicMesh, TextModeBundle, TextModePlugin, TileId, TilePos, Tiles};
+use crate::gui::GuiPlugin;
 
 mod tiles;
 mod tile_material;
 mod colors;
+mod gui;
 
 fn main() {
     App::new()
@@ -16,6 +18,7 @@ fn main() {
         .add_plugin(Material2dPlugin::<TileMaterial>::default())
         .add_plugin(TextModePlugin)
         .add_plugin(ColorPlugin)
+        .add_plugin(GuiPlugin)
         .insert_resource(WindowDescriptor {
             title: "bevy_textmode".to_string(),
             present_mode: PresentMode::Immediate,
@@ -30,16 +33,21 @@ fn main() {
         .run();
 }
 
+#[derive(Component)]
+struct MainCamera;
+
 fn setup(
     mut commands: Commands,
 ) {
     let mut camera = OrthographicCameraBundle::new_2d();
     camera.transform = Transform {
-        translation: Vec3::new(15.5 * 8.0, 8.5 * 8.0, 0.0),
+        translation: Vec3::new(15.5 * 8.0, 8.5 * 8.0, 999.0),
         scale: Vec3::new(0.25, 0.25, 1.0),
         ..Default::default()
     };
-    commands.spawn_bundle(camera);
+    commands
+        .spawn_bundle(camera)
+        .insert(MainCamera);
 }
 
 fn spawn_grid(
@@ -51,10 +59,10 @@ fn spawn_grid(
 ) {
     for x in 0..32 {
         for y in 0..18 {
-            let i: usize = 1;
+            let i: usize = random::<usize>() % 1024;
             let flip = random::<bool>();
             let rotation = random::<u8>() % 4;
-            let bg: usize = 0;
+            let bg: usize = random::<usize>() % 16;
             let fg: usize = random::<usize>() % 16;
             commands.spawn_bundle(TextModeBundle::new(&tiles, &mut materials, &TileId { index: i, flip, rotation}, x, y, colors.get(bg), colors.get(fg), meshes.tile.clone()));
         }
