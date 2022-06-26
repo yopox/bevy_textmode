@@ -6,7 +6,7 @@ use bevy_egui::{egui, EguiContext, EguiPlugin};
 use bevy_egui::egui::color_picker::show_color;
 use bevy_egui::egui::{emath, FontData, FontDefinitions, FontFamily, ImageData, pos2, Pos2, Rgba, TextEdit, Ui, Widget};
 use egui_extras::RetainedImage;
-use crate::{Colors, TileId};
+use crate::{Canvas, Colors, TileId};
 
 pub struct GuiPlugin;
 
@@ -16,7 +16,6 @@ impl Plugin for GuiPlugin {
             .add_plugin(EguiPlugin)
             .init_resource::<UiState>()
             .add_startup_system(setup)
-            .add_system(update_uv)
             .add_system(ui);
     }
 }
@@ -25,7 +24,6 @@ struct UiState {
     image: Option<RetainedImage>,
     tile: Option<egui::Image>,
     tile_id: TileId,
-    selected_rect: egui::Rect,
 }
 
 impl Default for UiState {
@@ -34,7 +32,6 @@ impl Default for UiState {
             image: None,
             tile: None,
             tile_id: TileId::new(),
-            selected_rect: egui::Rect { min: pos2(0., 0.), max: pos2(7., 7.) },
         }
     }
 }
@@ -42,6 +39,7 @@ impl Default for UiState {
 fn setup(
     mut egui_ctx: ResMut<EguiContext>,
     mut ui_state: ResMut<UiState>,
+    canvas: Res<Canvas>,
 ) {
     let image = image::io::Reader::open("assets/MRMOTEXT.png").unwrap().decode().unwrap();
     let size = [image.width() as _, image.height() as _];
@@ -55,7 +53,7 @@ fn setup(
     );
     ui_state.tile = Some(egui::Image::new(
         ui_state.image.as_ref().unwrap().texture_id(egui_ctx.ctx_mut()),
-        egui::vec2(32., 32.)
+        egui::vec2((canvas.tile_size * 4) as f32, (canvas.tile_size * 4) as f32)
     ));
 
     let mut fonts = FontDefinitions::default();
@@ -72,11 +70,6 @@ fn setup(
     egui_ctx.ctx_mut().set_fonts(fonts);
 }
 
-fn update_uv(
-    mut ui_state: ResMut<UiState>,
-) {
-}
-
 fn to_rgba(color: Color) -> Rgba {
     Rgba::from_rgb(color.r(), color.g(), color.b())
 }
@@ -86,8 +79,6 @@ fn ui(
     colors: Res<Colors>,
     mut ui_state: ResMut<UiState>,
 ) {
-    let mut remove = false;
-
     egui::SidePanel::left("side_panel")
         .default_width(200.0)
         .resizable(false)
@@ -167,13 +158,13 @@ fn ui(
                     ui.add_space(24.);
                     ui.heading("X");
                     let mut goto_x = (ui_state.tile_id.index % 32) as f32;
-                    ui.add(egui::DragValue::new::<f32>(&mut goto_x).speed(1.0));
+                    ui.add(egui::DragValue::new::<f32>(&mut goto_x).speed(0.2));
 
                     ui.add_space(17.);
 
                     ui.heading("Y");
                     let mut goto_y = (ui_state.tile_id.index / 32) as f32;
-                    ui.add(egui::DragValue::new::<f32>(&mut goto_y).speed(1.0));
+                    ui.add(egui::DragValue::new::<f32>(&mut goto_y).speed(0.2));
 
                     ui_state.tile_id.index = goto_x as usize + goto_y as usize * 32;
                 });

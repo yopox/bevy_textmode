@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::sprite::Mesh2dHandle;
 use image::GenericImageView;
-use crate::App;
+use crate::{App, Canvas};
 use crate::tile_material::TileMaterial;
 
 pub struct TextModePlugin;
@@ -52,8 +52,8 @@ pub struct Tiles {
 
 #[derive(Component, Copy, Clone, Eq, PartialEq)]
 pub struct TilePos {
-    pub x: i32,
-    pub y: i32,
+    pub x: u32,
+    pub y: u32,
 }
 
 #[derive(Bundle, Clone)]
@@ -69,15 +69,26 @@ pub struct TextModeBundle {
 }
 
 impl TextModeBundle {
-    pub(crate) fn new(tiles: &Res<Tiles>, materials: &mut ResMut<Assets<TileMaterial>>, id: &TileId, x: i32, y: i32, bg: Color, fg: Color, mesh: Handle<Mesh>) -> Self {
+    pub(crate) fn new(
+        tiles: &Res<Tiles>,
+        materials: &mut ResMut<Assets<TileMaterial>>,
+        id: &TileId,
+        x: u32,
+        y: u32,
+        bg: Color,
+        fg: Color,
+        mesh: Handle<Mesh>,
+        canvas: &Canvas,
+    ) -> Self {
         let texture = tiles.tiles.get(id).expect("Couldn't find tile.");
+        let tile = canvas.tile_size as f32;
         TextModeBundle {
             pos: TilePos { x, y },
             id: id.clone(),
             mesh: mesh.into(),
             material: materials.add(TileMaterial { texture: texture.clone(), bg, fg }),
             transform: Transform {
-                translation: Vec3::new(x as f32 * 8.0 + 26.0, y as f32 * 8.0, 0.0),
+                translation: Vec3::new(x as f32 * tile + canvas.offset.x, y as f32 * tile + canvas.offset.y, 0.0),
                 ..Default::default()
             },
             global_transform: Default::default(),
@@ -90,12 +101,14 @@ impl TextModeBundle {
 fn setup(
     mut commands: Commands,
     images: ResMut<Assets<Image>>,
+    canvas: Res<Canvas>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    init_spritesheet("assets/MRMOTEXT.png", 8, images, &mut commands);
+    init_spritesheet("assets/MRMOTEXT.png", canvas.tile_size, images, &mut commands);
+    let tile = canvas.tile_size as f32;
 
     commands.insert_resource(BasicMesh {
-        tile: meshes.add(Mesh::from(shape::Quad::new(Vec2::new(8.0, 8.0))))
+        tile: meshes.add(Mesh::from(shape::Quad::new(Vec2::new(tile, tile))))
     });
 }
 
