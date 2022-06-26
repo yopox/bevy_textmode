@@ -39,7 +39,6 @@ fn main() {
             "game_setup_grid",
             SystemStage::single(spawn_grid),
         )
-        .add_system(update_color)
         .run();
 }
 
@@ -80,34 +79,13 @@ fn spawn_grid(
 ) {
     for x in 0..canvas.width {
         for y in 0..canvas.height {
-            let i: usize = random::<usize>() % 1024;
-            let flip = random::<bool>();
-            let rotation = random::<u8>() % 4;
-            let bg: usize = random::<usize>() % 16;
-            let fg: usize = random::<usize>() % 16;
             commands.spawn_bundle(TextModeBundle::new(
                 &tiles, &mut materials,
-                &TileId { index: i, flip, rotation},
+                &TileId { index: 0, flip: false, rotation: 0 },
                 x, y,
-                colors.get(bg), colors.get(fg),
+                colors.get(0), colors.get(0),
                 meshes.tile.clone(), canvas.as_ref()
             ));
         }
     }
-}
-
-fn update_color(
-    materials: ResMut<Assets<TileMaterial>>,
-    all_tiles: Res<Tiles>,
-    tiles: Query<(&TilePos, &Handle<TileMaterial>)>,
-) {
-    // let x: u8 = random::<u8>() % 8;
-    // let y: u8 = random::<u8>() % 8;
-    // for (pos, handle) in tiles.iter() {
-    //     if pos.x == x as i32 && pos.y == y as i32 {
-    //         let mut tileMaterial = materials.get_mut(handle).unwrap();
-    //         tileMaterial.fg = Color::MIDNIGHT_BLUE;
-    //         tileMaterial.texture = all_tiles.tiles.get(&2).unwrap().clone();
-    //     }
-    // }
 }

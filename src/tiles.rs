@@ -47,7 +47,7 @@ impl TileId {
 
 #[derive(Component)]
 pub struct Tiles {
-    tiles: HashMap<TileId, Handle<Image>>
+    pub(crate) tiles: HashMap<TileId, Handle<Image>>
 }
 
 #[derive(Component, Copy, Clone, Eq, PartialEq)]

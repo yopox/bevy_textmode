@@ -1,10 +1,7 @@
-use bevy::ecs::system::Resource;
-use bevy::math::vec2;
 use bevy::prelude::*;
-use bevy::render::render_resource::TextureId;
 use bevy_egui::{egui, EguiContext, EguiPlugin};
 use bevy_egui::egui::color_picker::show_color;
-use bevy_egui::egui::{emath, FontData, FontDefinitions, FontFamily, ImageData, pos2, Pos2, Rgba, TextEdit, Ui, Widget};
+use bevy_egui::egui::{Color32, FontData, FontDefinitions, FontFamily, Pos2, TextEdit};
 use egui_extras::RetainedImage;
 use crate::{Canvas, Colors, TileId};
 
@@ -20,10 +17,12 @@ impl Plugin for GuiPlugin {
     }
 }
 
-struct UiState {
+pub struct UiState {
     image: Option<RetainedImage>,
     tile: Option<egui::Image>,
-    tile_id: TileId,
+    pub tile_id: TileId,
+    pub fg: usize,
+    pub bg: usize,
 }
 
 impl Default for UiState {
@@ -32,6 +31,8 @@ impl Default for UiState {
             image: None,
             tile: None,
             tile_id: TileId::new(),
+            fg: 10,
+            bg: 0,
         }
     }
 }
@@ -70,10 +71,6 @@ fn setup(
     egui_ctx.ctx_mut().set_fonts(fonts);
 }
 
-fn to_rgba(color: Color) -> Rgba {
-    Rgba::from_rgb(color.r(), color.g(), color.b())
-}
-
 fn ui(
     mut egui_ctx: ResMut<EguiContext>,
     colors: Res<Colors>,
@@ -91,24 +88,19 @@ fn ui(
 
             ui.add_space(8.);
 
-            let color_ui = |ui: &mut Ui, color: &Color| {
+            for i in 0..15 {
                 ui.horizontal(|ui| {
                     ui.add_space(16.);
-                    show_color(ui, to_rgba(*color), egui::Vec2::new(64.0, 20.0));
+                    let c1 = colors.get(i);
+                    let c2 = Color32::from_rgb((c1.r() * 255.) as u8, (c1.g() * 255.) as u8, (c1.b() * 255.) as u8);
+                    show_color(ui, c2, egui::Vec2::new(64.0, 20.0));
                     ui.add_space(8.);
-                    let _ = ui.button("-BG-");
+                    if ui.button("-BG-").clicked() { ui_state.bg = i; }
                     ui.add_space(4.);
-                    let _ = ui.button("-FG-");
+                    if ui.button("-FG-").clicked() { ui_state.fg = i; }
                 });
                 ui.add_space(2.);
-            };
-
-            vec![colors.black,
-                 colors.blue_0, colors.blue_1, colors.blue_2, colors.blue_3, colors.blue_4,
-                 colors.red_0, colors.red_1, colors.red_2, colors.red_3, colors.red_4,
-                 colors.yellow_0, colors.yellow_1, colors.yellow_2, colors.yellow_3, colors.yellow_4]
-                .iter()
-                .for_each(|c| { color_ui(ui, c); ui.add_space(4.); });
+            }
 
             ui.add_space(16.);
 
@@ -130,7 +122,7 @@ fn ui(
                     ui.add_space(4.);
                     if ui.button("ROTATE").clicked() { ui_state.tile_id.rotate(); }
                     ui.add_space(4.);
-                    if ui.button("FLIP").clicked() { ui_state.tile_id.flip(); }
+                    if ui.button("FLIP").clicked() { ui_state.tile_id.flip(); ui_state.tile_id.rotate(); ui_state.tile_id.rotate(); }
                 });
 
                 ui.add_space(8.);
